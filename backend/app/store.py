@@ -16,6 +16,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
 
+from app.queue_runtime import QueueRuntime
 from app.seed import SEED_ROWS
 
 # ---------------------------------------------------------------------------
@@ -372,6 +373,8 @@ class Store:
         self.dirty_vault = DirtyDataVault()
         self.collect_records = CollectRecordStore()
         self.recovery = FailureRecovery()
+        # 队列运行时：排队水位、任务排队数据快照与稳定队列位置
+        self.queue_runtime = QueueRuntime()
 
     # ---- 基础数据操作 ----
 

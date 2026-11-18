@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.routers import ROUTERS
+from app.routers import queue_admin
 from app.store import store
 from app.services import runtime_session, callback_hook
 
@@ -227,6 +228,9 @@ def pipeline_element_execution() -> dict[str, object]:
     result = runtime_session.consume_strategies_and_execute()
     return {"ok": True, "result": result}
 
+
+# 任务队列调度管理路由（/api/queue/...）含动态段，必须先于 /api/{module} 注册。
+app.include_router(queue_admin.router)
 
 # 资源路由含 /api/{module}，必须放在 health / overview 之后注册，
 # 否则固定路径会被动态路径抢先匹配。

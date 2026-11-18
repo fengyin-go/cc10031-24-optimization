@@ -94,13 +94,14 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 
 import {
   createEntry,
   downloadEntries,
   listEntries,
   moduleMeta,
+  QUEUE_UPDATED_EVENT,
   runAction as applyAction,
 } from '@/api/backend-service'
 import type { EntryRow } from '@/data/types'
@@ -187,5 +188,22 @@ async function reload() {
   }
 }
 
-onMounted(reload)
+// 任务队列操作后广播 queue-updated：其余业务页面随结果联动刷新
+function onQueueUpdated() {
+  void reload()
+}
+function onStorage(event: StorageEvent) {
+  if (event.key === QUEUE_UPDATED_EVENT) onQueueUpdated()
+}
+
+onMounted(() => {
+  void reload()
+  window.addEventListener(QUEUE_UPDATED_EVENT, onQueueUpdated)
+  window.addEventListener('storage', onStorage)
+})
+
+onUnmounted(() => {
+  window.removeEventListener(QUEUE_UPDATED_EVENT, onQueueUpdated)
+  window.removeEventListener('storage', onStorage)
+})
 </script>

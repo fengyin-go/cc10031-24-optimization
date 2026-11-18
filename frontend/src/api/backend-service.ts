@@ -106,3 +106,117 @@ export async function loadRecoveryStats(): Promise<Record<string, unknown>> {
   if (!response.ok) throw new Error('恢复状态查询失败')
   return await response.json()
 }
+
+// ---------------------------------------------------------------------------
+// 任务队列调度：排队水位、任务排队数据快照与版本升级
+// ---------------------------------------------------------------------------
+
+/** 队列变更事件名：任务队列操作后广播，其余业务页面随结果联动刷新 */
+export const QUEUE_UPDATED_EVENT = 'queue-updated'
+
+export function broadcastQueueUpdated(): void {
+  window.dispatchEvent(new CustomEvent(QUEUE_UPDATED_EVENT))
+  // 跨标签页联动：写入时间戳触发其他页面的 storage 监听
+  try {
+    localStorage.setItem(QUEUE_UPDATED_EVENT, String(Date.now()))
+  } catch {
+    /* 隐私模式下忽略 */
+  }
+}
+
+export type QueueWaterLevelView = {
+  taken_boundary: number
+  window_start: number
+  window_end: number
+  terminal_state: string
+  queued_total: number
+}
+
+export type QueuePosition = {
+  task_id: number
+  任务编号: string
+  流程名称: string
+  优先级: string
+  提交时间: string
+  queue_seq: number
+  queue_version: string
+  position: number
+  status: string
+}
+
+export type QueueStatus = {
+  ok: boolean
+  queue_version: string
+  water_level: QueueWaterLevelView
+  expected_order: QueuePosition[]
+  runtime: Record<string, unknown>
+}
+
+export async function loadQueueStatus(): Promise<QueueStatus> {
+  const response = await request('/api/queue/status')
+  if (!response.ok) throw new Error('队列水位读取失败')
+  return await response.json()
+}
+
+export async function loadQueueSnapshot(size = 5): Promise<Record<string, unknown>> {
+  const response = await request(`/api/queue/snapshot?size=${size}`)
+  if (!response.ok) throw new Error('队列快照生成失败')
+  return await response.json()
+}
+
+export async function dispatchDueTasks(): Promise<Record<string, unknown>> {
+  const response = await request('/api/queue/dispatch', { method: 'POST' })
+  if (!response.ok) throw new Error('到期任务展开失败')
+  return await response.json()
+}
+
+export async function scheduleQueueBatch(size = 5): Promise<Record<string, unknown>> {
+  const response = await request(`/api/queue/schedule?size=${size}`, { method: 'POST' })
+  if (!response.ok) throw new Error('窗口任务消费失败')
+  return await response.json()
+}
+
+export async function upgradeQueue(strategy: 'continue' | 'rebuild'): Promise<Record<string, unknown>> {
+  const response = await request('/api/queue/upgrade', {
+    method: 'POST',
+    body: JSON.stringify({ strategy }),
+  })
+  if (!response.ok) throw new Error('调度流程升级失败')
+  return await response.json()
+}
+
+export type CompleteResult = {
+  ok: boolean
+  conflict: boolean
+  message: string
+  status?: string
+}
+
+export async function completeQueueTask(
+  taskId: number,
+  result: Record<string, unknown> = {},
+): Promise<CompleteResult> {
+  const response = await request(`/api/queue/${taskId}/complete`, {
+    method: 'POST',
+    body: JSON.stringify({ result, success: true }),
+  })
+  return await response.json()
+}
+
+export type VerifyResult = {
+  ok: boolean
+  queue_version: string
+  expected_order: number[]
+  stable_sorted: boolean
+  taken_boundary: number
+  boundary_overlap: string[]
+  terminal_count: number
+  terminal_reentrant: string[]
+  message: string
+}
+
+export async function verifyQueueOrder(): Promise<VerifyResult> {
+  const response = await request('/api/queue/verify')
+  if (!response.ok) throw new Error('稳定顺序核对失败')
+  return await response.json()
+}

@@ -21,6 +21,12 @@ def require_service(module: str):
     return service
 
 
+def _allowed_filter_fields(service) -> set[str]:
+    """模块可筛选字段：列表字段 + 服务额外开放的筛选字段（如队列版本）。"""
+    extra = getattr(service, "EXTRA_FILTER_FIELDS", [])
+    return set(service.LIST_FIELDS) | set(extra)
+
+
 @router.get("/{module}", response_model=PageResult[dict])
 def list_entries(
     module: str,
@@ -31,10 +37,11 @@ def list_entries(
     size: int = Query(default=20, ge=1, le=200),
 ) -> PageResult[dict]:
     service = require_service(module)
+    allowed = _allowed_filter_fields(service)
     filters = {
         key: value.strip()
         for key, value in request.query_params.items()
-        if key in service.LIST_FIELDS and value.strip()
+        if key in allowed and value.strip()
     }
     items, total = service.list_entries(
         filters=filters, keyword=keyword, status=status, page=page, size=size)
